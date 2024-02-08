@@ -7,15 +7,17 @@ import io
 import requests
 from google.cloud import secretmanager
 from lxml import html
+from io import BytesIO
 
 project_id = 'sfdpw-413703'
+basic_data_url = 'https://mobile311.sfgov.org/reports/new?service_id=518d5892601827e3880000c5'
 
 app = Flask(__name__)
 app.config['UPLOAD_FOLDER'] = 'uploads/'
 
-def get_authenticity_token_from_url(url):
+def get_basic_data():
     # Download HTML content from the URL
-    response = requests.get(url)
+    response = requests.get(basic_data_url)
     
     # Check if the request was successful
     if response.status_code != 200:
@@ -44,29 +46,38 @@ def get_authenticity_token_from_url(url):
     return ret
 
 print("auth token")
-print(get_authenticity_token_from_url('https://mobile311.sfgov.org/reports/new?service_id=518d5892601827e3880000c5'))
+print(get_basic_data())
 
-def submit_form_with_image(image_data):
+def submit_report(addr, img, basic_data, lat, lon):
     # Define the form fields
     form_data = {
         "utf8": "âœ“",
-        "authenticity_token": "tgE8DR1LJ+Z57eVLzgFmw4doOIqq7O2n1v8hs9qhSeE=",
-        "activity[definition_id]": "63c9bf3652469e4ce3043456",
-        "activity[service_id]": "518d5892601827e3880000c5",
+        "authenticity_token": basic_data["authenticity_token"],
+        "activity[definition_id]": basic_data['activity_definition_id'],
+        "activity[service_id]": basic_data['activity_service_id'],
         "activity[report_id]": "",
-        "address-search": "1234 Mission St, San Francisco",
-        "activity[details][location][coordinates][lat]": "37.778358",
-        "activity[details][location][coordinates][lng]": "-122.412041",
-        "activity[details][location][address]": "1234 Mission St, San Francisco"
+        "address-search": addr,
+        "activity[details][location][coordinates][lat]": lat,
+        "activity[details][location][coordinates][lng]": lon,
+        "activity[details][location][address]": addr,
+        "activity[details][photo][image]": "Content-Type: application/octet-stream",
+        "activity[details][description]": "a bunch of crap that needs picked up",
+        "activity[details][request_type]": "Other_loose_garbage_debris_yard_waste",
+        "activity[details][contact][first_name]": "ButtStuff",
+        "activity[details][contact][last_name]": "McGee", 
+        "activity[details][contact][email]": "buttstuff@example.com",
+        "activity[details][contact][phone]": "123-456-7890",
+        "activity[details][contact][party_id]": ""
     }
     
     # Define the image file
     files = {
-        "activity[details][photo][image]": io.BytesIO(image_data)
+        "activity[details][photo][image]": io.BytesIO(img)
     }
 
     # Define the action URL
-    url = "https://mobile311.sfgov.org/reports/new?service_id=518d5892601827e3880000c5"
+    # url = "https://mobile311.sfgov.org/reports/new?service_id=518d5892601827e3880000c5"
+    url = "https://mobile311.sfgov.org/reports"
 
     # Send the POST request
     response = requests.post(url, data=form_data, files=files)
@@ -74,6 +85,7 @@ def submit_form_with_image(image_data):
     # Check the response
     if response.status_code == 200:
         print("Form submitted successfully!")
+        print(response.text)
     else:
         print("Error submitting form. Status code:", response.status_code)
 
@@ -113,6 +125,7 @@ def reverse_geocode(lat: float, lon: float, api_key: str) -> str:
             return "No results found for the given coordinates."
     else:
         return f"Error: {response.status_code}, {response.reason}"
+
 
 def get_lat_long_from_exif(img):
     """Extracts latitude and longitude from an image's EXIF data.
@@ -156,6 +169,24 @@ def get_lat_long_from_exif(img):
         print(f"Error extracting EXIF data: {e}")
     return None
 
+def img_convert_to_bytes(img):
+    if filename != '':
+        file_bytes = io.BytesIO(uploaded_file.read())
+    try:
+        with Image.open(file_bytes) as img:
+            # Convert img to bytes
+            img_byte_arr = BytesIO()
+            img.save(img_byte_arr, format=img.format)
+            # Now img_byte_arr.getvalue() gives you the byte representation of the image
+            exif_data = img._getexif()
+            ll = get_lat_long_from_exif(img)
+            addr = reverse_geocode(ll[0],ll[1],access_secret_version('GOOGLE_GEO_KEY'))
+            form_data = get_basic_data()
+            # Pass the bytes-like object instead of the image file
+            submit_report(addr, img_byte_arr.getvalue(), form_data, ll[0], ll[1])
+    except IOError:
+        print(f'Error opening image file {filename}')
+
 @app.route('/')
 def serve_static_index():
     return app.send_static_file('index.html')
@@ -171,10 +202,16 @@ def upload_file():
             file_bytes = io.BytesIO(uploaded_file.read())
             try:
                 with Image.open(file_bytes) as img:
+                    # Convert img to bytes
+                    img_byte_arr = BytesIO()
+                    img.save(img_byte_arr, format=img.format)
+                    # Now img_byte_arr.getvalue() gives you the byte representation of the image
                     exif_data = img._getexif()
-                    # print(f'EXIF data for {filename}: {exif_data}')
                     ll = get_lat_long_from_exif(img)
-                    print(reverse_geocode(ll[0],ll[1],access_secret_version('GOOGLE_GEO_KEY')))
+                    addr = reverse_geocode(ll[0],ll[1],access_secret_version('GOOGLE_GEO_KEY'))
+                    form_data = get_basic_data()
+                    # Pass the bytes-like object instead of the image file
+                    submit_report(addr, img_byte_arr.getvalue(), form_data, ll[0], ll[1])
             except IOError:
                 print(f'Error opening image file {filename}')
     return jsonify(success=True)
