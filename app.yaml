@@ -1,0 +1,13 @@
+runtime: python39  # You can choose a runtime even if not serving dynamic content, as GAE requires it.
+
+
+entrypoint: gunicorn -b :$PORT main:app
+
+handlers:
+- url: /
+  static_files: index.html
+  upload: index.html
+
+- url: /(.*)
+  static_files: \1
+  upload: (.*)
