@@ -29,6 +29,8 @@ else:
 
 logging.debug("Starting!!")
 
+# don't actually send anything
+debug = True
 project_id = 'sfdpw-413703'
 basic_data_url = 'https://mobile311.sfgov.org/reports/new?service_id=518d5892601827e3880000c5'
 
@@ -236,10 +238,12 @@ def upload_file():
                     form_data = get_basic_data()
                     # Pass the bytes-like object instead of the image file
                     logging.debug('sending form')
-                    # submit_report(addr, img_byte_arr.getvalue(), form_data, ll[0], ll[1])
+                    if not debug:
+                        submit_report(addr, img_byte_arr.getvalue(), form_data, ll[0], ll[1])
             except IOError:
                 logging.debug(f'Error opening image file {filename}')
-    return jsonify(success=True)
+    # return jsonify(success=True)
+    return "success"
 
 if __name__ == '__main__':
     if not os.path.exists(app.config['UPLOAD_FOLDER']):

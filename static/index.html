@@ -47,24 +47,56 @@
     var formData = new FormData();
 
     for (var i = 0; i < files.length; i++) {
-      var file = files[i];
-      formData.append('images[]', file, file.name);
+        var file = files[i];
+        formData.append('images[]', file, file.name);
     }
 
     fetch('/upload', {
-      method: 'POST',
-      body: formData
+        method: 'POST',
+        body: formData
     })
     .then(response => response.text())
-    // .then(data => {
-    //   console.log(data);
-    //   alert('Images Uploaded Successfully!');
-    // })
+    .then(data => {
+        // Assuming the server returns a success message
+        if (data === 'success') {
+            adjustImageSaturation(); // Call function to adjust saturation
+        } else {
+            alert('Upload Failed.');
+        }
+    })
     .catch(error => {
-      console.error(error);
-      alert('Upload Failed.');
+        console.error(error);
+        alert('Upload Failed.');
     });
-  }
+}
+
+function adjustImageSaturation() {
+    var imgs = document.querySelectorAll('#preview img');
+    imgs.forEach(img => {
+        var canvas = document.createElement('canvas');
+        var ctx = canvas.getContext('2d');
+        canvas.width = img.width;
+        canvas.height = img.height;
+        ctx.drawImage(img, 0, 0, img.width, img.height);
+
+        var imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        var data = imageData.data;
+
+        for (var i = 0; i < data.length; i += 4) {
+            var r = data[i];
+            var g = data[i + 1];
+            var b = data[i + 2];
+            var avg = (r + g + b) / 3;
+            data[i] = avg;     // Set red component to average
+            data[i + 1] = avg; // Set green component to average
+            data[i + 2] = avg; // Set blue component to average
+        }
+
+        ctx.putImageData(imageData, 0, 0);
+        img.src = canvas.toDataURL();
+    });
+}
+
 </script>
 </body>
 </html>
