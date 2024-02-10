@@ -30,7 +30,7 @@ else:
 logging.debug("Starting!!")
 
 # don't actually send anything
-debug = True
+debug = False
 project_id = 'sfdpw-413703'
 basic_data_url = 'https://mobile311.sfgov.org/reports/new?service_id=518d5892601827e3880000c5'
 
@@ -80,14 +80,17 @@ def submit_report(addr, img, basic_data, lat, lon):
         "activity[details][location][coordinates][lng]": lon,
         "activity[details][location][address]": addr,
         "activity[details][photo][image]": "Content-Type: application/octet-stream",
-        "activity[details][description]": "TEST MESSAGE - PLEASE IGNORE",
+        # "activity[details][description]": "Garbage",
         "activity[details][request_type]": "Other_loose_garbage_debris_yard_waste",
-        "activity[details][contact][first_name]": "ButtStuff",
-        "activity[details][contaTruect][last_name]": "McGee", 
-        "activity[details][contact][email]": "buttstuff@example.com",
-        "activity[details][contact][phone]": "123-456-7890",
+        # "activity[details][contact][first_name]": "ButtStuff",
+        # "activity[details][contaTruect][last_name]": "McGee", 
+        # "activity[details][contact][email]": "buttstuff@example.com",
+        # "activity[details][contact][phone]": "123-456-7890",
         "activity[details][contact][party_id]": ""
     }
+
+    if debug:
+        form_data['activity']['details']['description'] = 'TEST MESSAGE - PLEASE IGNORE'
     
     # Define the image file
     files = {
