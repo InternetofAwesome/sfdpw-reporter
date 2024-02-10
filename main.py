@@ -6,8 +6,28 @@ import os
 import io
 import requests
 from google.cloud import secretmanager
-from lxml import html
+import google.cloud.secretmanager
+# https://cloud.google.com/docs/authentication/external/set-up-adcfrom lxml import html
 from io import BytesIO
+from lxml import html
+
+
+if 'GAE_APPLICATION' not in os.environ:
+    import logging
+    logging.debug=print
+else:
+    # Imports the Cloud Logging client library
+    import google.cloud.logging
+    # Instantiates a client
+    client = google.cloud.logging.Client()
+    # Retrieves a Cloud Logging handler based on the environment
+    # you're running in and integrates the handler with the
+    # Python logging module. By default this captures all logs
+    # at INFO level and higher
+    client.setup_logging()
+    import logging
+
+logging.debug("Starting!!")
 
 project_id = 'sfdpw-413703'
 basic_data_url = 'https://mobile311.sfgov.org/reports/new?service_id=518d5892601827e3880000c5'
@@ -21,7 +41,7 @@ def get_basic_data():
     
     # Check if the request was successful
     if response.status_code != 200:
-        print("Error:", response.status_code)
+        logging.debug("Error:", response.status_code)
         return None
     
     # Parse the HTML content
@@ -39,14 +59,11 @@ def get_basic_data():
     
     # Check if the input element is found
     # if not input_element:
-    #     print("Input element not found")
+    #     logging.debug("Input element not found")
     #     return None
     
     # return input_element[0].get("value", None)
     return ret
-
-print("auth token")
-print(get_basic_data())
 
 def submit_report(addr, img, basic_data, lat, lon):
     # Define the form fields
@@ -61,10 +78,10 @@ def submit_report(addr, img, basic_data, lat, lon):
         "activity[details][location][coordinates][lng]": lon,
         "activity[details][location][address]": addr,
         "activity[details][photo][image]": "Content-Type: application/octet-stream",
-        "activity[details][description]": "a bunch of crap that needs picked up",
+        "activity[details][description]": "TEST MESSAGE - PLEASE IGNORE",
         "activity[details][request_type]": "Other_loose_garbage_debris_yard_waste",
         "activity[details][contact][first_name]": "ButtStuff",
-        "activity[details][contact][last_name]": "McGee", 
+        "activity[details][contaTruect][last_name]": "McGee", 
         "activity[details][contact][email]": "buttstuff@example.com",
         "activity[details][contact][phone]": "123-456-7890",
         "activity[details][contact][party_id]": ""
@@ -84,10 +101,12 @@ def submit_report(addr, img, basic_data, lat, lon):
 
     # Check the response
     if response.status_code == 200:
-        print("Form submitted successfully!")
-        print(response.text)
+        logging.debug("Form submitted successfully!")
+        logging.debug(response.text)
+        return True
     else:
-        print("Error submitting form. Status code:", response.status_code)
+        logging.debug("Error submitting form. Status code:", response.status_code)
+        return response.status_code
 
 def access_secret_version(secret_id):
     """
@@ -166,7 +185,7 @@ def get_lat_long_from_exif(img):
                 lon = -lon
             return lat, lon
     except Exception as e:
-        print(f"Error extracting EXIF data: {e}")
+        logging.debug(f"Error extracting EXIF data: {e}")
     return None
 
 def img_convert_to_bytes(img):
@@ -185,7 +204,7 @@ def img_convert_to_bytes(img):
             # Pass the bytes-like object instead of the image file
             submit_report(addr, img_byte_arr.getvalue(), form_data, ll[0], ll[1])
     except IOError:
-        print(f'Error opening image file {filename}')
+        logging.debug(f'Error opening image file {filename}')
 
 @app.route('/')
 def serve_static_index():
@@ -194,8 +213,8 @@ def serve_static_index():
 @app.route('/upload', methods=['POST'])
 def upload_file():
     uploaded_files = request.files.getlist('images[]')
-    print(request.files)
-    print(uploaded_files)
+    logging.debug(request.files)
+    logging.debug(uploaded_files)
     for uploaded_file in uploaded_files:
         filename = secure_filename(uploaded_file.filename)
         if filename != '':
@@ -206,14 +225,20 @@ def upload_file():
                     img_byte_arr = BytesIO()
                     img.save(img_byte_arr, format=img.format)
                     # Now img_byte_arr.getvalue() gives you the byte representation of the image
+                    logging.debug('getting exif')
                     exif_data = img._getexif()
+                    logging.debug('getting lat long')
                     ll = get_lat_long_from_exif(img)
+                    logging.debug('getting address')
                     addr = reverse_geocode(ll[0],ll[1],access_secret_version('GOOGLE_GEO_KEY'))
+                    logging.debug(addr)
+                    logging.debug('getting base data from dpw')
                     form_data = get_basic_data()
                     # Pass the bytes-like object instead of the image file
-                    submit_report(addr, img_byte_arr.getvalue(), form_data, ll[0], ll[1])
+                    logging.debug('sending form')
+                    # submit_report(addr, img_byte_arr.getvalue(), form_data, ll[0], ll[1])
             except IOError:
-                print(f'Error opening image file {filename}')
+                logging.debug(f'Error opening image file {filename}')
     return jsonify(success=True)
 
 if __name__ == '__main__':

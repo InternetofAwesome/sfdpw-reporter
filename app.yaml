@@ -1,13 +1,16 @@
-runtime: python39  # You can choose a runtime even if not serving dynamic content, as GAE requires it.
 
+runtime: python39
+# entrypoint: gunicorn -b :$PORT main:app --log-level=debug --timeout 60
 
-entrypoint: gunicorn -b :$PORT main:app
 
 handlers:
-- url: /
-  static_files: index.html
-  upload: index.html
+  # This configures Google App Engine to serve the files in the app's static
+  # directory.
+- url: /static
+  static_dir: static
 
-- url: /(.*)
-  static_files: \1
-  upload: (.*)
+  # This handler routes all requests not caught above to your main app. It is
+  # required when static routes are defined, but can be omitted (along with
+  # the entire handlers section) when there are no static files defined.
+- url: /.*
+  script: auto
