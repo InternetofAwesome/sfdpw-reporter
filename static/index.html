@@ -8,7 +8,8 @@
 </head>
 <body>
 <h2>Upload Images</h2>
-<input type="file" id="image-input" name="images" multiple onchange="previewImages()"><br><br>
+<!-- <input type="file" name="image" accept="image/*" multiple> -->
+<input type="file" id="image-input" accept="image/*" name="images" multiple onchange="previewImages()"><br><br>
 <button onclick="uploadImages()">Upload Images</button>
 <div id="preview"></div>
 
