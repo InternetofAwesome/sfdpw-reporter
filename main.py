@@ -11,10 +11,18 @@ import google.cloud.secretmanager
 from io import BytesIO
 from lxml import html
 
+# don't actually send anything
+debug = False
+project_id = 'sfdpw-413703'
+basic_data_url = 'https://mobile311.sfgov.org/reports/new?service_id=518d5892601827e3880000c5'
+report_url = "https://mobile311.sfgov.org/reports"
+geo_url = "https://maps.googleapis.com/maps/api/geocode/json"
+
+
 
 if 'GAE_APPLICATION' not in os.environ:
     import logging
-    logging.debug=print
+    logging.info=print
 else:
     # Imports the Cloud Logging client library
     import google.cloud.logging
@@ -26,13 +34,8 @@ else:
     # at INFO level and higher
     client.setup_logging()
     import logging
-
-logging.debug("Starting!!")
-
-# don't actually send anything
-debug = False
-project_id = 'sfdpw-413703'
-basic_data_url = 'https://mobile311.sfgov.org/reports/new?service_id=518d5892601827e3880000c5'
+logging.getLogger().setLevel(logging.INFO)
+logging.info("Starting!!")
 
 app = Flask(__name__)
 app.config['UPLOAD_FOLDER'] = 'uploads/'
@@ -43,7 +46,7 @@ def get_basic_data():
     
     # Check if the request was successful
     if response.status_code != 200:
-        logging.debug("Error:", response.status_code)
+        logging.info("Error:", response.status_code)
         return None
     
     # Parse the HTML content
@@ -61,7 +64,7 @@ def get_basic_data():
     
     # Check if the input element is found
     # if not input_element:
-    #     logging.debug("Input element not found")
+    #     logging.info("Input element not found")
     #     return None
     
     # return input_element[0].get("value", None)
@@ -95,22 +98,18 @@ def submit_report(addr, img, basic_data, lat, lon):
     # Define the image file
     files = {
         "activity[details][photo][image]": io.BytesIO(img)
-    }
-
-    # Define the action URL
-    # url = "https://mobile311.sfgov.org/reports/new?service_id=518d5892601827e3880000c5"
-    url = "https://mobile311.sfgov.org/reports"
+    }    
 
     # Send the POST request
-    response = requests.post(url, data=form_data, files=files)
+    response = requests.post(report_url, data=form_data, files=files)
 
     # Check the response
     if response.status_code == 200:
-        logging.debug("Form submitted successfully!")
-        logging.debug(response.text)
+        logging.info("Form submitted successfully!")
+        logging.info(response.text)
         return True
     else:
-        logging.debug("Error submitting form. Status code:", response.status_code)
+        logging.info("Error submitting form. Status code:", response.status_code)
         return response.status_code
 
 def access_secret_version(secret_id):
@@ -134,12 +133,11 @@ def reverse_geocode(lat: float, lon: float, api_key: str) -> str:
     Returns:
         str: The most likely street address as a string, or an error message.
     """
-    base_url = "https://maps.googleapis.com/maps/api/geocode/json"
     params = {
         "latlng": f"{lat},{lon}",
         "key": access_secret_version("GOOGLE_GEO_KEY")
     }
-    response = requests.get(base_url, params=params)
+    response = requests.get(geo_url, params=params)
     if response.status_code == 200:
         results = response.json().get("results")
         if results:
@@ -190,7 +188,7 @@ def get_lat_long_from_exif(img):
                 lon = -lon
             return lat, lon
     except Exception as e:
-        logging.debug(f"Error extracting EXIF data: {e}")
+        logging.info(f"Error extracting EXIF data: {e}")
     return None
 
 def img_convert_to_bytes(img):
@@ -209,7 +207,7 @@ def img_convert_to_bytes(img):
             # Pass the bytes-like object instead of the image file
             submit_report(addr, img_byte_arr.getvalue(), form_data, ll[0], ll[1])
     except IOError:
-        logging.debug(f'Error opening image file {filename}')
+        logging.info(f'Error opening image file {filename}')
 
 @app.route('/')
 def serve_static_index():
@@ -218,8 +216,8 @@ def serve_static_index():
 @app.route('/upload', methods=['POST'])
 def upload_file():
     uploaded_files = request.files.getlist('images[]')
-    logging.debug(request.files)
-    logging.debug(uploaded_files)
+    # logging.info(request.files)
+    # logging.info(uploaded_files)
     for uploaded_file in uploaded_files:
         filename = secure_filename(uploaded_file.filename)
         if filename != '':
@@ -230,21 +228,21 @@ def upload_file():
                     img_byte_arr = BytesIO()
                     img.save(img_byte_arr, format=img.format)
                     # Now img_byte_arr.getvalue() gives you the byte representation of the image
-                    logging.debug('getting exif')
+                    logging.info('getting exif')
                     exif_data = img._getexif()
-                    logging.debug('getting lat long')
+                    logging.info('getting lat long')
                     ll = get_lat_long_from_exif(img)
-                    logging.debug('getting address')
+                    logging.info('getting address')
                     addr = reverse_geocode(ll[0],ll[1],access_secret_version('GOOGLE_GEO_KEY'))
-                    logging.debug(addr)
-                    logging.debug('getting base data from dpw')
+                    logging.info(addr)
+                    logging.info('getting base data from dpw')
                     form_data = get_basic_data()
                     # Pass the bytes-like object instead of the image file
-                    logging.debug('sending form')
+                    logging.info('sending form')
                     if not debug:
                         submit_report(addr, img_byte_arr.getvalue(), form_data, ll[0], ll[1])
             except IOError:
-                logging.debug(f'Error opening image file {filename}')
+                logging.info(f'Error opening image file {filename}')
     # return jsonify(success=True)
     return "success"
 

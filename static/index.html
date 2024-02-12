@@ -32,6 +32,7 @@
         img.src = e.target.result;
         img.style.height = '100px';
         img.style.margin = '10px';
+        img.id = file.name;
         preview.appendChild(img);
       };
 
@@ -44,36 +45,38 @@
   }
 
   function uploadImages() {
-    var files = document.querySelector('#image-input').files;
-    var formData = new FormData();
+    var files = document.querySelector('#image-input').files
 
     for (var i = 0; i < files.length; i++) {
-        var file = files[i];
-        formData.append('images[]', file, file.name);
+      let formData = new FormData();
+      let file = files[i];
+      formData.append('images[]', file, file.name);
+      console.log("uploading " + file.name)
+
+      fetch('/upload', {
+          method: 'POST',
+          body: formData
+      })
+      .then(response => response.text())
+      .then(data => {
+          // Assuming the server returns a success message
+          if (data === 'success') {
+              console.log("done with " + file.name)
+              adjustImageSaturation(file.name); // Call function to adjust saturation
+          } else {
+              alert('Upload Failed.');
+          }
+      })
+      .catch(error => {
+          console.error(error);
+          alert('Upload Failed.');
+      });
     }
 
-    fetch('/upload', {
-        method: 'POST',
-        body: formData
-    })
-    .then(response => response.text())
-    .then(data => {
-        // Assuming the server returns a success message
-        if (data === 'success') {
-            adjustImageSaturation(); // Call function to adjust saturation
-        } else {
-            alert('Upload Failed.');
-        }
-    })
-    .catch(error => {
-        console.error(error);
-        alert('Upload Failed.');
-    });
 }
 
-function adjustImageSaturation() {
-    var imgs = document.querySelectorAll('#preview img');
-    imgs.forEach(img => {
+function adjustImageSaturation(id) {
+        var img = document.getElementById(id)
         var canvas = document.createElement('canvas');
         var ctx = canvas.getContext('2d');
         canvas.width = img.width;
@@ -95,7 +98,6 @@ function adjustImageSaturation() {
 
         ctx.putImageData(imageData, 0, 0);
         img.src = canvas.toDataURL();
-    });
 }
 
 </script>
